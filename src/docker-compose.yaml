@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  backend:
+    image: "${SERVICES_BACKEND_IMAGE:-workshop/backend}"
+    build: "./backend"
+    container_name: workshop-backend
+    ports:
+      - "8180:8180"
+    networks:
+      - network-workshop-service
+
+  frontend:
+    image: "${SERVICES_FRONTEND_IMAGE:-workshop/frontend}"
+    build: "./frontend"
+    container_name: workshop-frontend
+    ports:
+      - "3000:3000"
+    networks:
+      - network-workshop-service
+    environment:
+      - REACT_APP_PROXY_HOST=http://workshop-backend:8180
+
+networks:
+  network-workshop-service:

@@ -1,0 +1,63 @@
+version: 0.2
+
+env:
+  secrets-manager:
+    DOCKERHUB_USER: "workshop/dockerhub:username"
+    DOCKERHUB_PASS: "workshop/dockerhub:password"
+  exported-variables:
+    - CODEBUILD_BUILD_URL
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto11
+  pre_build:
+    commands:
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - echo Logging in to Docker Hub...
+      - echo $DOCKERHUB_PASS | docker login -u $DOCKERHUB_USER --password-stdin
+
+      - aws sts get-caller-identity
+      - credentials=$(aws sts assume-role --role-arn "${DESTINATION_BUILD_SERVICE_ROLE_ARN}" --role-session-name "RoleSessionFromCodeBuild" | jq .Credentials)
+      - export AWS_ACCESS_KEY_ID=$(echo ${credentials} | jq -r .AccessKeyId)
+      - export AWS_SECRET_ACCESS_KEY=$(echo ${credentials} | jq -r .SecretAccessKey)
+      - export AWS_SESSION_TOKEN=$(echo ${credentials} | jq -r .SessionToken)
+      - aws sts get-caller-identity
+
+      - export SERVICES_FRONTEND_IMAGE=${AWS_ACCOUNT_ID_DEST}.dkr.ecr.ap-northeast-1.amazonaws.com/${PREFIX}-ecr-workshop-service-frontend
+      - export SERVICES_BACKEND_IMAGE=${AWS_ACCOUNT_ID_DEST}.dkr.ecr.ap-northeast-1.amazonaws.com/${PREFIX}-ecr-workshop-service-backend
+
+      - aws ecs describe-task-definition --task-definition ${ECS_TASK_ARN} --query taskDefinition | jq '.containerDefinitions[0].image="'"${SERVICES_BACKEND_IMAGE}"'"' | jq '.containerDefinitions[1].image="<IMAGE1_NAME>"' > taskdef.json
+      - aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID_DEST}.dkr.ecr.ap-northeast-1.amazonaws.com
+      - cat taskdef.json
+  build:
+    commands:
+      - echo build start on `date`
+      - cd src
+      - docker-compose build
+      - cd ..
+      - echo tag ${SERVICES_FRONTEND_IMAGE}:latest ${SERVICES_FRONTEND_IMAGE}:$IMAGE_TAG
+      - docker tag ${SERVICES_FRONTEND_IMAGE}:latest ${SERVICES_FRONTEND_IMAGE}:${IMAGE_TAG}
+      - docker tag ${SERVICES_BACKEND_IMAGE}:latest ${SERVICES_BACKEND_IMAGE}:${IMAGE_TAG}
+      - docker images
+  post_build:
+    commands:
+      - docker push ${SERVICES_FRONTEND_IMAGE}:latest
+      - docker push ${SERVICES_FRONTEND_IMAGE}:${IMAGE_TAG}
+      - docker push ${SERVICES_BACKEND_IMAGE}:latest
+      - docker push ${SERVICES_BACKEND_IMAGE}:${IMAGE_TAG}
+
+      - printf '{"Version":"1.0","ImageURI":"%s"}' ${SERVICES_FRONTEND_IMAGE}:${IMAGE_TAG} > imageDetail.json
+      - tail imageDetail.json
+
+      - unset AWS_ACCESS_KEY_ID
+      - unset AWS_SECRET_ACCESS_KEY
+      - unset AWS_SESSION_TOKEN
+      - aws sts get-caller-identity
+artifacts:
+  files:
+    - test-results/**/*
+    - tools/**/*
+    - imageDetail.json
+    - taskdef.json
+    - appspec.yaml

@@ -1,0 +1,5 @@
+application:
+  enable-xray: false
+spring:
+  jpa:
+    generate-ddl: true

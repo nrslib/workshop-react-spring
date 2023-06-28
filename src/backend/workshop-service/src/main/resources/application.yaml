@@ -1,0 +1,20 @@
+spring:
+  profiles:
+    active: inmem
+    group:
+      inmem:
+        - app-common
+        - app-inmem
+        - datastore-h2
+      dev:
+        - app-common
+        - app-dev
+        - datastore
+      local:
+        - app-common
+        - app-local
+        - datastore
+      test:
+        - app-common
+        - app-test
+        - datastore

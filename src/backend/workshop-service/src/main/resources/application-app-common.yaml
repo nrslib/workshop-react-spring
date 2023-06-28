@@ -1,0 +1,16 @@
+application:
+  prefix: local
+server:
+  port: 8180
+spring:
+  application:
+    name: workshop-service
+  mvc:
+    hiddenmethod:
+      filter:
+        enabled: true
+springdoc:
+  packages-to-scan: com.nrslib.workshop.service
+  paths-to-match: "/api/**"
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
